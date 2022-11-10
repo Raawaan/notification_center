@@ -18,12 +18,12 @@ fn main() {
     println!("rd_kafka_version: {}, {}", version_n, version_s);
     let producer = create_producer();
     let connection_pool = conn_oracle();
-
+    println!("ready");
     consume_and_execute("127.0.0.1:9093",
                         "group-id",
                         &vec!["trigger-campaign"],
                         send_notification,
                         producer,
-                        connection_pool
+                        connection_pool,
     );
 }

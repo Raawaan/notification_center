@@ -43,14 +43,7 @@ pub mod query {
     pub const BATCH_SIZE: i32 = 10000;
     pub const PARTITIONS_NO: i32 = 5;
 
-    // pubub fn get_data(page: i32, connection_pool: &Pool) ->  ResultSet<Result<oracle::Error,Row>> {
-    //
-    //         let connection = (*connection_pool).get().expect("failed to create connect");
-    //         let result_set: ResultSet<Row> = connection.query("SELECT ROWNUM,CUSTOMER.* FROM Customer order by ROWNUM OFFSET :1 ROWS FETCH NEXT :2 ROWS ONLY ",
-    //                                                           &[&(&page * &BATCH_SIZE), &BATCH_SIZE]).expect("expected row");
-    //         connection.close().expect("error closing connection");
-    //     return result_set.collect()
-    // }
+
 
     fn get_total_rows_count(connection: Connection) -> i32 {
         let row = connection.query_row("SELECT COUNT(*) FROM CUSTOMER", &[]).expect("expected row");
