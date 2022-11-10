@@ -7,7 +7,6 @@ mod customer;
 use rdkafka::util::get_rdkafka_version;
 use crate::kafka::consumer::consume_and_execute;
 use crate::kafka::consumer::create_producer;
-// use crate::database::query::get_data;
 use crate::database::connection::conn_oracle;
 use std::thread;
 use crate::service::customer::send_notification;

@@ -28,13 +28,12 @@ pub mod customer{
                     return multirow.map(|row| Customer::map_to_customer(row)).expect("invalid Customer")
                 )
                     .collect::<Vec<Customer>>()
-                    .iter()
-                    .par_bridge()
+                    .par_iter()
                     .for_each(|customer| {
                         let notification = get_customer_notification(&customer);
                         produce(notification,(page) % PARTITIONS_NO,producer)
                     });
-                connection.close().expect("error closing connection");
+                // connection.close().expect("error closing connection");
 
             });
 
