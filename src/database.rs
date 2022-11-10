@@ -1,4 +1,11 @@
-mod connection {
+use oracle::sql_type::{Collection, FromSql, Object};
+use oracle::{Row, SqlValue};
+use rdkafka::ClientContext;
+use rdkafka::message::DeliveryResult;
+use rdkafka::producer::ProducerContext;
+use serde::Serialize;
+
+pub mod connection {
     use std::time::Duration;
     use oracle::pool::{Pool, PoolBuilder};
 
@@ -15,59 +22,38 @@ mod connection {
     }
 }
 
+
 pub mod query {
-    use oracle::{Connection, SqlValue};
+    use std::time::Duration;
+    use oracle::{Connection, Error, ResultSet, Row, SqlValue};
+    use oracle::pool::Pool;
     use oracle::sql_type::ObjectType;
     use oracle::sql_type::OracleType::Object;
     use rayon::prelude::*;
-    use crate::database::Customer;
-    // use crate::kafka::kafkaconsumer::produce;
+    use crate::kafka::consumer::produce;
+    use crate::template::format::get_customer_notification;
     use super::connection::conn_oracle;
     use rayon::iter::ParallelIterator;
+    use rayon::{ThreadBuilder, ThreadPool, ThreadPoolBuilder};
+    use rdkafka::ClientConfig;
+    use rdkafka::producer::{BaseProducer, BaseRecord, DefaultProducerContext, Producer, ThreadedProducer};
+    use serde::de::value::UsizeDeserializer;
+    use crate::customer::Customer;
 
-    const BATCH_SIZE: i32 = 10000;
+    pub const BATCH_SIZE: i32 = 10000;
+    pub const PARTITIONS_NO: i32 = 5;
 
-    pub fn get_data() {
-        let pool = conn_oracle();
-
-        let count = get_total_rows_count(pool.get().expect("failed to create connect"));
-        let rem = match count % BATCH_SIZE == 0 {
-            true => 0,
-            false => 1
-        };
-        let pages = count / BATCH_SIZE + rem;
-        println!("total number of pages {}", pages);
-        let range: Vec<i32> = (0..pages).collect();
-        let _ = range.par_iter().for_each(|page| {
-            println!("fetching page {}", page);
-            let connection = pool.get().expect("failed to create connect");
-            let result_set = connection.query("SELECT ROWNUM,CUSTOMER.* FROM customer order by ROWNUM OFFSET :1 ROWS FETCH NEXT :2 ROWS ONLY ",
-                                              &[&(page * &BATCH_SIZE), &BATCH_SIZE]).expect("expected row");
-
-            let customer_vec: Vec<Customer> = result_set.map(|multirow| {
-                let customer = multirow.map(|row| Customer {
-                    id: row.get("ROWNUM").expect("expect ROWNUM"),
-                    name: row.get("name").expect("expect name"),
-                    msisdn: row.get("msisdn").expect("expect msisdn"),
-                    segment: row.get("segment").expect("expect segment"),
-                    balance: row.get("balance").expect("expect balance"),
-                }).expect("invalid customer");
-                customer
-            }).collect();
-            // produce("127.0.0.1:9093",
-            //         "group-id","customer-msg",&customer_vec);customer_vec
-            connection.close().expect("error closing connection");
-
-            println!("got {} customers page {}", customer_vec.len(), page);
-        });
-        println!("count of open connection {}", pool.open_count().expect("failed to get open connections"));
-
-        println!("done")
-    }
+    // pubub fn get_data(page: i32, connection_pool: &Pool) ->  ResultSet<Result<oracle::Error,Row>> {
+    //
+    //         let connection = (*connection_pool).get().expect("failed to create connect");
+    //         let result_set: ResultSet<Row> = connection.query("SELECT ROWNUM,CUSTOMER.* FROM Customer order by ROWNUM OFFSET :1 ROWS FETCH NEXT :2 ROWS ONLY ",
+    //                                                           &[&(&page * &BATCH_SIZE), &BATCH_SIZE]).expect("expected row");
+    //         connection.close().expect("error closing connection");
+    //     return result_set.collect()
+    // }
 
     fn get_total_rows_count(connection: Connection) -> i32 {
         let row = connection.query_row("SELECT COUNT(*) FROM CUSTOMER", &[]).expect("expected row");
-
         let count: i32 = row.get("COUNT(*)").expect("expected count");
         println!("total rows count {}", count);
         connection.close().expect("error closing connection");
@@ -75,10 +61,42 @@ pub mod query {
     }
 }
 
-struct Customer {
-    id:i32,
-    name: String,
-    msisdn: String,
-    segment: String,
-    balance: i64,
-}
+//
+// impl FromSql for Customer{
+//     fn from_sql(val: &SqlValue) -> oracle::Result<Customer> {
+//       let k= val.get::<Collection>().expect("");
+//     Ok(
+//         Customer{
+//
+//             // id: row.get("ROWNUM").expect("expect Customer id"),
+//             //                 name: row.get("name").expect("expect Customer name"),
+//             //                 msisdn: row.get("msisdn").expect("expect Customer msisdn"),
+//             //                 segment: row.get("segment").expect("expect Customer segment"),
+//             //                 balance: row.get("balance").expect("expect Customer balance"),
+//             id: 0,
+//             name: "".to_string(),
+//             msisdn: "".to_string(),
+//             segment: "".to_string(),
+//             balance: 0
+//         })
+//
+//        }
+// }
+
+
+// let _= result_set.map( |multirow| {
+//         let Customer = multirow.map(|row| {
+//             Customer {
+//                 id: row.get("ROWNUM").expect("expect Customer id"),
+//                 name: row.get("name").expect("expect Customer name"),
+//                 msisdn: row.get("msisdn").expect("expect Customer msisdn"),
+//                 segment: row.get("segment").expect("expect Customer segment"),
+//                 balance: row.get("balance").expect("expect Customer balance"),
+//             }
+//         }).expect("invalid Customer");
+//     let notification = get_customer_notification(&Customer);
+//         let base_record: BaseRecord<str, String> = BaseRecord::to("Customer-msg").payload(&notification).key("key").partition(*page % PARTITIONS_NO);
+//         producer.send(base_record).expect("error producing msg")
+// }).collect::<()>();
+
+// println!("producing took {:?}", chrono::offset::Local::now()-producingNow);
