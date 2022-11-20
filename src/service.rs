@@ -4,7 +4,7 @@ pub mod customer{
     use rayon::iter::{IntoParallelRefIterator, ParallelBridge};
     use rdkafka::producer::{DefaultProducerContext, ThreadedProducer};
     use crate::customer::Customer;
-    use crate::database::query::{BATCH_SIZE, PARTITIONS_NO};
+    use crate::database::query::{BATCH_SIZE, get_total_rows_count, PARTITIONS_NO};
     use crate::kafka::consumer::produce;
     use crate::template::format::get_customer_notification;
     use rayon::prelude::*;
@@ -12,7 +12,7 @@ pub mod customer{
     use rayon::iter::ParallelIterator;
     use rayon::{ThreadBuilder, ThreadPool, ThreadPoolBuilder};
     pub fn send_notification(producer:&ThreadedProducer<DefaultProducerContext>,connection_pool: &Pool){
-            let count = 1000000;
+            let count = get_total_rows_count(connection_pool.get().unwrap());
             let pages = count / BATCH_SIZE;
             println!("total number of pages {}", pages);
             let range: Vec<i32> = (0..pages).collect();
